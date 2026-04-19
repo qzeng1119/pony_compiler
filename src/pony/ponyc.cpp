@@ -197,6 +197,29 @@ int dumpToken() {
    *  Write your code here.
    *
    */
+  while (lexer.getCurToken() != tok_eof) {
+    Token curToken = lexer.getCurToken();
+    if (curToken == tok_return) {
+      std::cout << "return ";
+    } else if (curToken == tok_def) {
+      std::cout << "def ";
+    } else if (curToken == tok_var) {
+      std::cout << "var ";
+    } else if (curToken == tok_identifier) {
+      if (lexer.getValid()) {
+        std::cout << lexer.getId().str() << ' ';
+      }
+    } else if (curToken == tok_number) {
+      if (lexer.getValid()) {
+        std::cout << lexer.getValue() << ' ';
+      }
+    } else {
+      std::cout << (char)curToken << ' ';
+    }
+    lexer.consume(curToken);
+  }
+
+  std::cout << "EOF\n";
   return 0;
 }
 

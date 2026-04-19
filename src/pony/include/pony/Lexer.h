@@ -90,6 +90,9 @@ class Lexer {
   // Return the current column in the file.
   int getCol() { return curCol; }
 
+  // Added by me to tell *dumpToken()* whether the current identifier or number is valid and avoid printing it when it is invalid.
+  bool getValid() {return valid; }
+
  private:
   /// Delegate to a derived class fetching the next line. Returns an empty
   /// string to signal end of file (EOF). Lines are expected to always finish
@@ -113,7 +116,21 @@ class Lexer {
      *
      *  Write your code here.
      *
-     */
+     */ 
+    if (curLineBuffer.empty()) {
+      return EOF;
+    }   
+
+    char nextChar = curLineBuffer.front();
+    curLineBuffer = curLineBuffer.drop_front(); // important!
+    if (nextChar == '\n') {
+      curLineBuffer = readNextLine();
+      curLineNum++;
+      curCol = 0;
+    } else {
+      curCol++;
+    }
+    return nextChar;
   }
 
   ///  Return the next token from standard input.
@@ -142,7 +159,53 @@ class Lexer {
      *  Write your code here.
      *
      */
+    if (isalpha(lastChar) || lastChar == '_') {
+      std::string idStr;
+      do {
+        idStr += lastChar;
+        lastChar = Token(getNextChar());
+      } while (isalnum(lastChar) || lastChar == '_');
 
+      std::string lowerStr;
+      for (char c : idStr) {
+        if (c >= 'A' && c <= 'Z') {
+          lowerStr += c - 'A' + 'a';
+        } else {
+          lowerStr += c;
+        }
+      }
+
+      if (lowerStr == "return") {
+        return tok_return;
+      } else if (lowerStr == "def") {
+        return tok_def;
+      } else if (lowerStr == "var") {
+        return tok_var;
+      }
+
+      bool lastIsNum = false;
+      bool inValid = false;
+      for (char c : idStr) {
+        if (!isdigit(c)) continue;
+        if (lastIsNum) {
+          inValid = true;
+          break;
+        } else {
+          lastIsNum = true;
+        }
+      }
+
+      if (inValid) {
+        std::cerr << '\n' << "line " << lastLocation.line << ", col " << lastLocation.col << ":\n" << 
+        "ERROR: Invalid identifier with continuous numbers: " << idStr << '\n';
+        valid = false;
+      } else {
+        valid = true;
+      }
+
+      identifierStr = idStr;
+      return tok_identifier;
+    }
     // TODO: 3.
     // 改进识别数字的方法，使编译器可以识别并在终端报告非法数字，非法表示包括：9.9.9，9..9，.999，..9，9..，9e01等。
     if (isdigit(lastChar) || lastChar == '.') {
@@ -150,7 +213,61 @@ class Lexer {
       do {
         numStr += lastChar;
         lastChar = Token(getNextChar());
-      } while (isdigit(lastChar) || lastChar == '.');
+      } while (isdigit(lastChar) || lastChar == '.' || lastChar == 'e');
+
+      bool haveDot = false;
+      bool haveE = false;
+      bool lastIsDot = false;
+      bool lastIsE = false;
+      bool inValid = false;
+
+      for (char c : numStr) {
+        if (lastIsDot) {
+          if (c > '9' || c < '0') {
+            inValid = true;
+            break;
+          }
+          lastIsDot = false;
+          continue;
+        }
+
+        if (lastIsE) {
+          if (c > '9' || c < '1') {
+            inValid = true;
+            break;
+          }
+          lastIsE = false;
+          continue;
+        }
+
+        if (c == '.') {
+          if (haveDot || haveE) {
+            inValid = true;
+            break;
+          }
+          haveDot = true;
+          lastIsDot = true;
+          continue;
+        }
+
+        if (c == 'e') {
+          if (haveE) {
+            inValid = true;
+            break;
+          }
+          haveE = true;
+          lastIsE = true;
+          continue;
+        }
+      }
+
+      if (inValid) {
+        std::cerr << '\n' << "line " << lastLocation.line << ", col " << lastLocation.col << ":\n" <<
+        "ERROR: Invalid number: " << numStr << '\n';
+        valid = false;
+      } else {
+        valid = true;
+      }
 
       numVal = strtod(numStr.c_str(), nullptr);
       return tok_number;
@@ -199,6 +316,10 @@ class Lexer {
 
   /// Buffer supplied by the derived class on calls to `readNextLine()`
   llvm::StringRef curLineBuffer = "\n";
+
+
+  // Added by me to tell *dumpToken()* whether the current identifier or number is valid and avoid printing it when it is invalid.
+  bool valid = true;
 };
 
 /// A lexer implementation operating on a buffer in memory.
