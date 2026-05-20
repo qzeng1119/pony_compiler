@@ -170,7 +170,7 @@ class Parser {
   //    (1) var a = [[1, 2, 3], [4, 5, 6]];
   //    (2) var a<2,3> = [1, 2, 3, 4, 5, 6];
   // You need to support the third method:
-  //    (3) var a[2][3] = [1, 2, 3, 4, 5, 6]
+  //    (3) var <2,3> a = [1, 2, 3, 4, 5, 6];
   // Some functions may be useful:  getLastLocation(); getNextToken();
   std::unique_ptr<VarDeclExprAST> parseDeclaration() {
     auto loc = lexer.getLastLocation();
@@ -189,6 +189,14 @@ class Parser {
      *
      */
 
+    // TODO: modify code to support definition type (3)
+    // For definition type (3), you need to handle the tensor shape before checking the identifier.
+    /*
+     *
+     *  Write your code here.
+     *
+     */
+
     // TODO: check to see if this is a variable name(identifier)
     //       If not, report the error with 'parseError', otherwise eat the
     //       variable name
@@ -198,7 +206,8 @@ class Parser {
      *
      */
 
-    // TODO: modify code to support definition type (3)
+    // TODO: modify code to support definition type (1)(2)
+    // When definition type (3) is checked, the variable type cannot be type (1) or (2).
     std::unique_ptr<VarType> type;  // Type is optional, it can be inferred
     if (lexer.getCurToken() == '<') {
       type = parseType();
@@ -212,10 +221,6 @@ class Parser {
                                             std::move(*type), std::move(expr));
   }
 
-  // TODO: modify code to support definition type (3)
-  //       Your parser is required to parse type like [2][3]
-  //       Store shape info in the variable "type" like example code
-  //       Error report should be clear for each definition type
   std::unique_ptr<VarType> parseType() {
     if (lexer.getCurToken() != '<')
       return parseError<VarType>("<", "to begin type");
