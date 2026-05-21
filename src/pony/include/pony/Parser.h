@@ -188,7 +188,9 @@ class Parser {
      *  Write your code here.
      *
      */
-
+    if (lexer.getCurToken() != tok_var) 
+      return parseError<VarDeclExprAST>("var", "in variable declaration");
+    lexer.consume(tok_var);
     // TODO: modify code to support definition type (3)
     // For definition type (3), you need to handle the tensor shape before checking the identifier.
     /*
@@ -214,7 +216,20 @@ class Parser {
       if (!type) return nullptr;
     }
 
+    if (lexer.getCurToken() != tok_identifier) 
+      return parseError<VarDeclExprAST>("identifier", "in variable declaration");
+    id = lexer.getId().str();
+    lexer.consume(tok_identifier);
+
+    if (!type) {
+      if (lexer.getCurToken() == '<') {
+        type = parseType();
+        if (!type) return nullptr;
+      }
+    }
+
     if (!type) type = std::make_unique<VarType>();
+
     lexer.consume(Token('='));
     auto expr = parseExpression();
     return std::make_unique<VarDeclExprAST>(std::move(loc), std::move(id),
@@ -315,6 +330,35 @@ class Parser {
      *  Write your code here.
      *
      */
+    auto loc = lexer.getLastLocation();
+    std::string id;
+    std::vector<std::unique_ptr<ExprAST>> args;
+    
+    id = lexer.getId().str();
+    lexer.consume(tok_identifier);
+    
+    if (lexer.getCurToken() != '(') { // identifier
+      return std::make_unique<VariableExprAST>(std::move(loc), std::move(id));
+    } 
+
+    // not an identifier
+    lexer.consume(Token('('));
+
+    while (lexer.getCurToken() != ')') {
+      args.push_back(parseExpression());
+      if (lexer.getCurToken() == ',') 
+        lexer.consume(Token(','));
+    }
+    lexer.consume(Token(')'));
+
+    if (id == "print") { // print function
+      if (args.size() != 1) 
+        return parseError<PrintExprAST>("exactly one argument", "failed to ensure exactly one argument for print function");
+      return std::make_unique<PrintExprAST>(std::move(loc), std::move(args[0]));
+    }
+
+    // normal function call
+    return std::make_unique<CallExprAST>(std::move(loc), std::move(id), std::move(args));
   }
 
   /// Parse a literal number.
@@ -422,6 +466,8 @@ class Parser {
         return 20;
       case '*':
         return 40;
+      case '@':
+        return 40;
       default:
         return -1;
     }
@@ -448,6 +494,27 @@ class Parser {
      *  Write your code here.
      *
      */
+    while (true) {
+      int tokPrec = getTokPrecedence();
+
+      if (tokPrec < exprPrec) return lhs;
+
+      auto binOp = static_cast<char>(lexer.getCurToken());
+      auto loc = lexer.getLastLocation();
+      lexer.getNextToken();  // eat binop
+
+      auto rhs = parsePrimary();
+      if (!rhs) return nullptr;
+
+      int nextPrec = getTokPrecedence();
+      if (tokPrec < nextPrec) {
+        rhs = parseBinOpRHS(tokPrec + 1, std::move(rhs));
+        if (!rhs) return nullptr;
+      }
+
+      lhs = std::make_unique<BinaryExprAST>(std::move(loc), binOp,
+                                            std::move(lhs), std::move(rhs));
+    }
   }
 
   /// Helper function to signal errors while parsing, it takes an argument
